@@ -106,6 +106,7 @@ static GPIO_PinState getChannelArmSwitchState(uint8_t channelID);
 static GPIO_PinState getChannelReadyState(uint8_t channelID);
 static void getLaunchChannelFirePin(uint8_t channelID, GPIO_TypeDef *launchPort, uint16_t *launchPin);
 static void serviceLaunchChannelState(uint8_t channelID);
+static void detectChannelStateChanges(void);
 static bool fireLaunchChannel(uint8_t channelID);
 
 static void measureBattery(void);
@@ -238,6 +239,24 @@ static void serviceLaunchChannelState(uint8_t channelID) {
 		case RLS_CHANNEL_LAUNCH_GOOD:
 			// State locked until the channel is disarmed!
 			break;
+	}
+
+}
+
+static void detectChannelStateChanges(void) {
+	static channelState_t previousState[LAUNCH_CHANNEL_COUNT] = {0};
+	bool channelChanged = false;
+
+	for (uint8_t channelID = 0; channelID < LAUNCH_CHANNEL_COUNT; channelID++) {
+		if (previousState[channelID] != rlsHandle.channelState[channelID]) {
+			previousState[channelID] = rlsHandle.channelState[channelID];
+			channelChanged = true;
+			break;
+		}
+	}
+
+	if (channelChanged) {
+		osThreadFlagsSet(RxStatusProcessId, 1);
 	}
 }
 
@@ -400,12 +419,16 @@ static void RlsProcess(void *argument) {
     	rlsHandle.rlsBleStatus = RLS_BLE_CONNECTED;
     } else {
     	rlsHandle.rlsBleStatus = RLS_BLE_DISCONNECTED;
+    	rlsHandle.lanuchActivated = false; // If disconnected, disable the launch mode
     }
 
     // Check each channel switch for updates
     for (uint8_t channelID = 0; channelID < LAUNCH_CHANNEL_COUNT; channelID++) {
     	serviceLaunchChannelState(channelID);
     }
+
+    // Detect State Changes
+    detectChannelStateChanges();
 
     // Fire any pending launch channels
     bool channelLaunched = false;
@@ -448,7 +471,6 @@ static void RlsLedProcess(void *argument) {
   LedAddr_Init();
 
   for(;;) {
-//    osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
 
 	  // Set the Power LEDs
 	  LedAddr_SetColor(0, 0, 255, 0);
@@ -485,9 +507,9 @@ static void RlsLedProcess(void *argument) {
 				break;
 			case RLS_CHANNEL_ARMED:
 				// Yellow
-				LedAddr_SetColor(ledIndex, 255, 150, 0);
-				LedAddr_SetColor(ledIndex + 1, 255, 150, 0);
-				LedAddr_SetColor(ledIndex + 2, 255, 150, 0);
+				LedAddr_SetColor(ledIndex, 0, 255, 0);
+				LedAddr_SetColor(ledIndex + 1, 0, 255, 0);
+				LedAddr_SetColor(ledIndex + 2, 0, 255, 0);
 				break;
 			case RLS_CHANNEL_LAUNCH:
 				// Green
@@ -497,9 +519,9 @@ static void RlsLedProcess(void *argument) {
 				break;
 			case RLS_CHANNEL_LAUNCH_ERROR:
 				// Red
-				LedAddr_SetColor(ledIndex, 255, 0, 0);
-				LedAddr_SetColor(ledIndex + 1, 255, 0, 0);
-				LedAddr_SetColor(ledIndex + 2, 255, 0, 0);
+				LedAddr_SetColor(ledIndex, 255, 150, 0);
+				LedAddr_SetColor(ledIndex + 1, 255, 150, 0);
+				LedAddr_SetColor(ledIndex + 2, 255, 150, 0);
 				break;
 			case RLS_CHANNEL_LAUNCH_GOOD:
 				// Green
@@ -519,7 +541,7 @@ static void RlsLedProcess(void *argument) {
 static void RlsAlarmProcess(void *argument) {
   UNUSED(argument);
 
-  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 1);
+//  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 1);
   osDelay(50);
   HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 0);
 
@@ -532,30 +554,37 @@ static void RlsBeaconProcess(void *argument) {
   UNUSED(argument);
 
   for(;;) {
-//    osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
-	  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 1);
-	  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
-	  osDelay(100);
+	  if (rlsHandle.lanuchActivated) {
+		  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 1);
+		  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
+		  osDelay(100);
 
-	  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 1);
-	  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
-	  osDelay(100);
+		  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 1);
+		  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
+		  osDelay(100);
 
-	  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 1);
-	  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
-	  osDelay(100);
+		  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 1);
+		  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
+		  osDelay(100);
 
-	  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
-	  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 1);
-	  osDelay(100);
+		  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 1);
+		  osDelay(100);
+	  } else {
+		  HAL_GPIO_WritePin(BEACON_LED1_GPIO_Port, BEACON_LED1_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED2_GPIO_Port, BEACON_LED2_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED3_GPIO_Port, BEACON_LED3_Pin, 0);
+		  HAL_GPIO_WritePin(BEACON_LED4_GPIO_Port, BEACON_LED4_Pin, 0);
+		  osDelay(100);
+	  }
   }
 }
 

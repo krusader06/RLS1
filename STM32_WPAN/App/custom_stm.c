@@ -101,8 +101,8 @@ static SVCCTL_EvtAckStatus_t Custom_STM_Event_Handler(void *pckt);
 /* Private functions ----------------------------------------------------------*/
 
 #define COPY_RLS_SERVICE_UUID(uuid_struct)          COPY_UUID_128(uuid_struct,0xd7,0xf5,0x7c,0xe3,0xa3,0x40,0x47,0xcf,0xb4,0xd5,0x38,0x64,0xb7,0x68,0x12,0x64)
-#define COPY_RLS_CMD_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0xd7,0xf5,0x7c,0xe3,0xa3,0x40,0x47,0xcf,0xb4,0xd5,0x38,0x64,0xb7,0x68,0x12,0x65)
-#define COPY_RLS_STATUS_UUID(uuid_struct)    COPY_UUID_128(uuid_struct,0xd7,0xf5,0x7c,0xe3,0xa3,0x40,0x47,0xcf,0xb4,0xd5,0x38,0x64,0xb7,0x68,0x12,0x66)
+#define COPY_RLS_CMD_UUID(uuid_struct)    			COPY_UUID_128(uuid_struct,0xd7,0xf5,0x7c,0xe3,0xa3,0x40,0x47,0xcf,0xb4,0xd5,0x38,0x64,0xb7,0x68,0x12,0x65)
+#define COPY_RLS_STATUS_UUID(uuid_struct)   		COPY_UUID_128(uuid_struct,0xd7,0xf5,0x7c,0xe3,0xa3,0x40,0x47,0xcf,0xb4,0xd5,0x38,0x64,0xb7,0x68,0x12,0x66)
 
 /* USER CODE BEGIN PF */
 
@@ -187,6 +187,8 @@ static SVCCTL_EvtAckStatus_t Custom_STM_Event_Handler(void *Event)
             return_value = SVCCTL_EvtAckFlowEnable;
             /* USER CODE BEGIN CUSTOM_STM_Service_1_Char_1_ACI_GATT_ATTRIBUTE_MODIFIED_VSEVT_CODE */
             Notification.Custom_Evt_Opcode = CUSTOM_STM_RLS_CMD_WRITE_EVT;
+            Notification.DataTransfered.Length = attribute_modified->Attr_Data_Length;
+            Notification.DataTransfered.pPayload = attribute_modified->Attr_Data;
             Custom_STM_App_Notification(&Notification);
             /* USER CODE END CUSTOM_STM_Service_1_Char_1_ACI_GATT_ATTRIBUTE_MODIFIED_VSEVT_CODE */
           } /* if (attribute_modified->Attr_Handle == (CustomContext.CustomRls_CmdHdle + CHARACTERISTIC_VALUE_ATTRIBUTE_OFFSET))*/
@@ -194,7 +196,10 @@ static SVCCTL_EvtAckStatus_t Custom_STM_Event_Handler(void *Event)
           {
             return_value = SVCCTL_EvtAckFlowEnable;
             /* USER CODE BEGIN CUSTOM_STM_Service_1_Char_2_ACI_GATT_ATTRIBUTE_MODIFIED_VSEVT_CODE */
-
+            Notification.Custom_Evt_Opcode = CUSTOM_STM_RLS_STS_WRITE_EVT;
+            Notification.DataTransfered.Length = attribute_modified->Attr_Data_Length;
+            Notification.DataTransfered.pPayload = attribute_modified->Attr_Data;
+            Custom_STM_App_Notification(&Notification);
             /* USER CODE END CUSTOM_STM_Service_1_Char_2_ACI_GATT_ATTRIBUTE_MODIFIED_VSEVT_CODE */
           } /* if (attribute_modified->Attr_Handle == (CustomContext.CustomRls_StsHdle + CHARACTERISTIC_VALUE_ATTRIBUTE_OFFSET))*/
           /* USER CODE BEGIN EVT_BLUE_GATT_ATTRIBUTE_MODIFIED_END */

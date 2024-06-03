@@ -18,6 +18,8 @@
 
 #include "main.h"
 
+#include "cmsis_os.h"
+
 /********************************************************************************
  * DEFINES
  *******************************************************************************/
@@ -96,11 +98,11 @@ typedef enum {
 // and re-arm.
 typedef enum {
 	RLS_CHANNEL_DISARMED = 0,
-	RLS_CHANNEL_NOT_READY,
-	RLS_CHANNEL_ARMED,
+	RLS_CHANNEL_NOT_READY,				// Blinking Red
+	RLS_CHANNEL_ARMED,					// Green
 	RLS_CHANNEL_LAUNCH,
-	RLS_CHANNEL_LAUNCH_ERROR,
-	RLS_CHANNEL_LAUNCH_GOOD,
+	RLS_CHANNEL_LAUNCH_ERROR,			// Yellow
+	RLS_CHANNEL_LAUNCH_GOOD,			// Blue
 } channelState_t;
 
 typedef struct {
@@ -123,6 +125,9 @@ typedef struct {
 extern rlsHandle_t rlsHandle;
 
 extern ADC_HandleTypeDef hadc1;
+
+// External RTOS task IDs
+extern osThreadId_t RxStatusProcessId;
 
 /********************************************************************************
  * PROTOTYPES

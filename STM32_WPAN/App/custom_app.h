@@ -56,7 +56,13 @@ typedef struct
 
 /* External variables --------------------------------------------------------*/
 /* USER CODE BEGIN EV */
-
+#define RX_BLE_STATE_PROCESS_NAME        	"RX_BLE_STATE_PROCESS"
+#define RX_BLE_STATE_PROCESS_ATTR_BITS   	(0)
+#define RX_BLE_STATE_PROCESS_CB_MEM      	(0)
+#define RX_BLE_STATE_PROCESS_CB_SIZE     	(0)
+#define RX_BLE_STATE_PROCESS_STACK_MEM   	(0)
+#define RX_BLE_STATE_PROCESS_PRIORITY    	osPriorityNone
+#define RX_BLE_STATE_PROCESS_STACK_SIZE  	(128 * 10)
 /* USER CODE END EV */
 
 /* Exported macros ------------------------------------------------------------*/

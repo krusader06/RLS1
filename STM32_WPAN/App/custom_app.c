@@ -28,7 +28,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdbool.h>
+#include "cmsis_os.h"
 
+#include "rls.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,7 +47,15 @@ typedef struct
 } Custom_App_Context_t;
 
 /* USER CODE BEGIN PTD */
+typedef enum {
+	RLS_LAUNCH_CODE = 0,
+	RLS_BATTERY_SOC,
+	RLS_CHANNEL_STATE,
+	RLS_LAUNCH_COMMAND,
 
+	// Shall be last in list
+	RLS_SEND_COMPLETE = 99,
+} rls_status_id;
 /* USER CODE END PTD */
 
 /* Private defines ------------------------------------------------------------*/
@@ -73,6 +84,18 @@ uint8_t NotifyCharData[247];
 
 /* USER CODE BEGIN PV */
 
+osThreadId_t RxStatusProcessId;
+
+const osThreadAttr_t RxStatusProcess_attr = {
+    .name = RX_BLE_STATE_PROCESS_NAME,
+    .attr_bits = RX_BLE_STATE_PROCESS_ATTR_BITS,
+    .cb_mem = RX_BLE_STATE_PROCESS_CB_MEM,
+    .cb_size = RX_BLE_STATE_PROCESS_CB_SIZE,
+    .stack_mem = RX_BLE_STATE_PROCESS_STACK_MEM,
+    .priority = RX_BLE_STATE_PROCESS_PRIORITY,
+    .stack_size = RX_BLE_STATE_PROCESS_STACK_SIZE
+};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -81,7 +104,10 @@ static void Custom_Rls_sts_Update_Char(void);
 static void Custom_Rls_sts_Send_Notification(void);
 
 /* USER CODE BEGIN PFP */
+void parseCommand(Custom_STM_App_Notification_evt_t *pNotification);
+void receiveStatus(Custom_STM_App_Notification_evt_t *pNotification);
 
+static void RxStatusProcess(void *argument);
 /* USER CODE END PFP */
 
 /* Functions Definition ------------------------------------------------------*/
@@ -99,9 +125,7 @@ void Custom_STM_App_Notification(Custom_STM_App_Notification_evt_t *pNotificatio
     /* RLS_Service */
     case CUSTOM_STM_RLS_CMD_WRITE_EVT:
       /* USER CODE BEGIN CUSTOM_STM_RLS_CMD_WRITE_EVT */
-    	HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 1);
-    	osDelay(50);
-    	HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 0);
+    	parseCommand(pNotification);
       /* USER CODE END CUSTOM_STM_RLS_CMD_WRITE_EVT */
       break;
 
@@ -113,19 +137,19 @@ void Custom_STM_App_Notification(Custom_STM_App_Notification_evt_t *pNotificatio
 
     case CUSTOM_STM_RLS_STS_WRITE_EVT:
       /* USER CODE BEGIN CUSTOM_STM_RLS_STS_WRITE_EVT */
-
+    	receiveStatus(pNotification);
       /* USER CODE END CUSTOM_STM_RLS_STS_WRITE_EVT */
       break;
 
     case CUSTOM_STM_RLS_STS_NOTIFY_ENABLED_EVT:
       /* USER CODE BEGIN CUSTOM_STM_RLS_STS_NOTIFY_ENABLED_EVT */
-
+    	Custom_App_Context.Rls_sts_Notification_Status = 1;
       /* USER CODE END CUSTOM_STM_RLS_STS_NOTIFY_ENABLED_EVT */
       break;
 
     case CUSTOM_STM_RLS_STS_NOTIFY_DISABLED_EVT:
       /* USER CODE BEGIN CUSTOM_STM_RLS_STS_NOTIFY_DISABLED_EVT */
-
+    	Custom_App_Context.Rls_sts_Notification_Status = 0;
       /* USER CODE END CUSTOM_STM_RLS_STS_NOTIFY_DISABLED_EVT */
       break;
 
@@ -187,7 +211,7 @@ void Custom_APP_Notification(Custom_App_ConnHandle_Not_evt_t *pNotification)
 void Custom_APP_Init(void)
 {
   /* USER CODE BEGIN CUSTOM_APP_Init */
-
+	RxStatusProcessId = osThreadNew(RxStatusProcess, NULL, &RxStatusProcess_attr);
   /* USER CODE END CUSTOM_APP_Init */
   return;
 }
@@ -205,7 +229,7 @@ void Custom_APP_Init(void)
 /* RLS_Service */
 void Custom_Rls_sts_Update_Char(void) /* Property Read */
 {
-  uint8_t updateflag = 0;
+  uint8_t updateflag = 1;
 
   /* USER CODE BEGIN Rls_sts_UC_1*/
 
@@ -217,7 +241,7 @@ void Custom_Rls_sts_Update_Char(void) /* Property Read */
   }
 
   /* USER CODE BEGIN Rls_sts_UC_Last*/
-
+  memset(UpdateCharData, 0, sizeof(UpdateCharData));
   /* USER CODE END Rls_sts_UC_Last*/
   return;
 }
@@ -243,5 +267,112 @@ void Custom_Rls_sts_Send_Notification(void) /* Property Notification */
 }
 
 /* USER CODE BEGIN FD_LOCAL_FUNCTIONS*/
+
+
+
+
+
+
+/**
+ * @brief  Parses an incoming command from the BLE App
+ * @param  <pNotification> Pointer to the BLE Notification Packet
+ * @retval <NONE>
+ */
+void parseCommand(Custom_STM_App_Notification_evt_t *pNotification) {
+	if (memcmp(pNotification->DataTransfered.pPayload, "sendStatus", 10) == 0) {
+		osThreadFlagsSet(RxStatusProcessId, 1);
+	}
+
+	if (memcmp(pNotification->DataTransfered.pPayload, "disableLaunch", 13) == 0) {
+		rlsHandle.lanuchActivated = false;
+	}
+
+}
+
+/**
+ * @brief  Receives a new setting from the mobile app then updates the settings
+ * @note	The payload is structured as the settingID in bit[0] and a string starting at bit [1]
+ * 		All settings here are located and updated within the eeprom.
+ * @param  <NONE>
+ * @retval <NONE>
+ */
+void receiveStatus(Custom_STM_App_Notification_evt_t *pNotification) {
+
+	rls_status_id statusID = pNotification->DataTransfered.pPayload[0];
+
+	switch (statusID) {
+		case RLS_LAUNCH_CODE: // Received a launch code.
+			// TODO - Validate launch code against stored PIN. For now, just assume OK.
+			rlsHandle.lanuchActivated = true;
+
+			// Send the launch code response back to the app
+			UpdateCharData[0] = RLS_LAUNCH_CODE;
+			UpdateCharData[1] = 1;
+			if (Custom_App_Context.Rls_sts_Notification_Status) {
+				Custom_Rls_sts_Update_Char();
+			}
+			break;
+
+		case RLS_LAUNCH_COMMAND: // Received a launch command.
+			if (rlsHandle.lanuchActivated != true) {
+				break;
+			}
+
+			// Find the commanded launch channels
+			for (uint8_t i = 0; i < LAUNCH_CHANNEL_COUNT; i++) {
+				if (pNotification->DataTransfered.pPayload[i + 1] == 1) {
+					rlsHandle.launchCommandReceived[i] = true;
+				}
+			}
+
+			break;
+
+		default:
+			break;
+	}
+}
+
+
+
+/********************************************************************************
+ * RTOS PROCESSES
+ *******************************************************************************/
+static void RxStatusProcess(void *argument) {
+  UNUSED(argument);
+
+  for(;;) {
+	  osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+
+	  // Send the Battery SOC
+	  UpdateCharData[0] = RLS_BATTERY_SOC;
+	  UpdateCharData[1] = rlsHandle.batteryInfo.batterySOC;
+	  if (Custom_App_Context.Rls_sts_Notification_Status) {
+		  Custom_Rls_sts_Update_Char();
+	  }
+
+	  osDelay(5);
+
+	  // Send the Channel States
+	  for (uint8_t i = 0; i < LAUNCH_CHANNEL_COUNT; i++) {
+		  UpdateCharData[0] = RLS_CHANNEL_STATE;
+		  UpdateCharData[1] = i;
+		  UpdateCharData[2] = rlsHandle.channelState[i];
+		  if (Custom_App_Context.Rls_sts_Notification_Status) {
+			  Custom_Rls_sts_Update_Char();
+		  }
+
+		  osDelay(5);
+	  }
+
+	  // Send Complete
+	  UpdateCharData[0] = RLS_SEND_COMPLETE;
+	  if (Custom_App_Context.Rls_sts_Notification_Status) {
+		  Custom_Rls_sts_Update_Char();
+	  }
+
+  }
+}
+
+
 
 /* USER CODE END FD_LOCAL_FUNCTIONS*/
