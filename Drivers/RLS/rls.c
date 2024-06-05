@@ -287,7 +287,7 @@ static bool fireLaunchChannel(uint8_t channelID) {
 	GPIO_TypeDef launchPort;
 	uint16_t launchPin;
 	getLaunchChannelFirePin(channelID, &launchPort, &launchPin);
-//	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
 
 	rlsHandle.launchCommandReceived[channelID] = false;
 
