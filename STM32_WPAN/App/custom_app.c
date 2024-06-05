@@ -320,9 +320,19 @@ void receiveStatus(Custom_STM_App_Notification_evt_t *pNotification) {
 
 			// Find the commanded launch channels
 			for (uint8_t i = 0; i < LAUNCH_CHANNEL_COUNT; i++) {
-				if (pNotification->DataTransfered.pPayload[i + 1] == 1) {
-					rlsHandle.launchCommandReceived[i] = true;
+
+				bool launchChannelSelected = pNotification->DataTransfered.pPayload[i + 1];
+
+				if (!launchChannelSelected) {
+					continue;
 				}
+
+				// Make sure the channel is able to be launched.
+				if (rlsHandle.channelState[i] != RLS_CHANNEL_ARMED) {
+					continue;
+				}
+
+				rlsHandle.launchCommandReceived[i] = true;
 			}
 
 			break;

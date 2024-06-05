@@ -24,7 +24,7 @@
 /********************************************************************************
  * GLOBAL VARIABLES
  *******************************************************************************/
-rlsHandle_t rlsHandle;
+rlsHandle_t rlsHandle = {0};
 
 uint16_t BAT_SOC_MAP[10][2] = {
 		{10, 11510},
@@ -287,7 +287,9 @@ static bool fireLaunchChannel(uint8_t channelID) {
 	GPIO_TypeDef launchPort;
 	uint16_t launchPin;
 	getLaunchChannelFirePin(channelID, &launchPort, &launchPin);
-	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
+//	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
+
+	rlsHandle.launchCommandReceived[channelID] = false;
 
 	return true;
 }
@@ -500,13 +502,13 @@ static void RlsLedProcess(void *argument) {
 				LedAddr_SetColor(ledIndex + 2, 0, 0, 0);
 				break;
 			case RLS_CHANNEL_NOT_READY:
-				// Red
+				// Blinking Red
 				LedAddr_SetColor(ledIndex, 255, 0, 0);
 				LedAddr_SetColor(ledIndex + 1, 255, 0, 0);
 				LedAddr_SetColor(ledIndex + 2, 255, 0, 0);
 				break;
 			case RLS_CHANNEL_ARMED:
-				// Yellow
+				// Green
 				LedAddr_SetColor(ledIndex, 0, 255, 0);
 				LedAddr_SetColor(ledIndex + 1, 0, 255, 0);
 				LedAddr_SetColor(ledIndex + 2, 0, 255, 0);
@@ -518,16 +520,16 @@ static void RlsLedProcess(void *argument) {
 				LedAddr_SetColor(ledIndex + 2, 0, 255, 0);
 				break;
 			case RLS_CHANNEL_LAUNCH_ERROR:
-				// Red
+				// Blinking Yellow
 				LedAddr_SetColor(ledIndex, 255, 150, 0);
 				LedAddr_SetColor(ledIndex + 1, 255, 150, 0);
 				LedAddr_SetColor(ledIndex + 2, 255, 150, 0);
 				break;
 			case RLS_CHANNEL_LAUNCH_GOOD:
-				// Green
-				LedAddr_SetColor(ledIndex, 0, 255, 0);
-				LedAddr_SetColor(ledIndex + 1, 0, 255, 0);
-				LedAddr_SetColor(ledIndex + 2, 0, 255, 0);
+				// Blue
+				LedAddr_SetColor(ledIndex, 0, 0, 255);
+				LedAddr_SetColor(ledIndex + 1, 0, 0, 255);
+				LedAddr_SetColor(ledIndex + 2, 0, 0, 255);
 				break;
 		  }
 	  }
