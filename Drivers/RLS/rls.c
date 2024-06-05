@@ -260,7 +260,7 @@ static void detectChannelStateChanges(void) {
 	}
 }
 
-
+//
 static bool fireLaunchChannel(uint8_t channelID) {
 	// Channel must be in the launch state
 	if (rlsHandle.channelState[channelID] != RLS_CHANNEL_LAUNCH) {
