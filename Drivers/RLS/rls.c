@@ -114,7 +114,7 @@ const osThreadAttr_t RlsBeaconProcess_attr = {
  *******************************************************************************/
 static GPIO_PinState getChannelArmSwitchState(uint8_t channelID);
 static GPIO_PinState getChannelReadyState(uint8_t channelID);
-static void getLaunchChannelFirePin(uint8_t channelID, GPIO_TypeDef *launchPort, uint16_t *launchPin);
+static void writeChannelFirePin(uint8_t channelID, GPIO_PinState pinState);
 static void serviceLaunchChannelState(uint8_t channelID);
 static void detectChannelStateChanges(void);
 
@@ -171,23 +171,23 @@ static GPIO_PinState getChannelReadyState(uint8_t channelID) {
 	return GPIO_PIN_RESET;
 }
 
-static void getLaunchChannelFirePin(uint8_t channelID, GPIO_TypeDef *launchPort, uint16_t *launchPin) {
+static void writeChannelFirePin(uint8_t channelID, GPIO_PinState pinState) {
+	if (!ENABLE_LAUNCH_OUTPUT) {
+		return;
+	}
+
 	switch (channelID) {
 		case 0:
-			launchPort = CH1_FIRE_GPIO_Port;
-			*launchPin = CH1_FIRE_Pin;
+			HAL_GPIO_WritePin(CH1_FIRE_GPIO_Port, CH1_FIRE_Pin, pinState);
 			break;
 		case 1:
-			launchPort = CH2_FIRE_GPIO_Port;
-			*launchPin = CH2_FIRE_Pin;
+			HAL_GPIO_WritePin(CH2_FIRE_GPIO_Port, CH2_FIRE_Pin, pinState);
 			break;
 		case 2:
-			launchPort = CH3_FIRE_GPIO_Port;
-			*launchPin = CH3_FIRE_Pin;
+			HAL_GPIO_WritePin(CH3_FIRE_GPIO_Port, CH3_FIRE_Pin, pinState);
 			break;
 		case 3:
-			launchPort = CH4_FIRE_GPIO_Port;
-			*launchPin = CH4_FIRE_Pin;
+			HAL_GPIO_WritePin(CH4_FIRE_GPIO_Port, CH4_FIRE_Pin, pinState);
 			break;
 	}
 }
@@ -410,17 +410,13 @@ static void RlsLaunchProcess(void *argument) {
 	}
 
 	// Everything looks good. Fire the igniter!
-	GPIO_TypeDef launchPort;
-	uint16_t launchPin;
-	getLaunchChannelFirePin(channelID, &launchPort, &launchPin);
-#if (ENABLE_LAUNCH_OUTPUT)
-	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
-#endif
+	writeChannelFirePin(channelID, 1);
+
 	rlsHandle.launchCommandReceived[channelID] = false;
 
 	osDelay(LAUNCH_DURATION);
 
-	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_RESET);
+	writeChannelFirePin(channelID, 0);
 
 	// Check to see if the igniter has continuity
 	if (getChannelReadyState(channelID) == GPIO_PIN_SET) {
