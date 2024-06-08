@@ -36,10 +36,24 @@
 #define BAT_VOLT_RESISTOR_TOP		71500
 #define BAT_VOLT_RESISTOR_BOT		24000
 
+#define ENABLE_LAUNCH_OUTPUT		false	/*!< Disable fire pin output for debug and development			*/
+
+#define ENABLE_ALARM_OUTPUT			false	/*!< Disable alarm output for debug and development				*/
+#define ALARM_ON_DURATION			1000	/*!< Alarm on time during launch sequence						*/
+#define ALARM_OFF_DURATION			1000	/*!< Alarm off time during launch sequence						*/
+
 
 /********************************************************************************
  * RTOS FUNCTIONS FOR RLS
  *******************************************************************************/
+#define RLS_LAUNCH_PROCESS_NAME        	"RLS_LAUNCH_PROCESS"
+#define RLS_LAUNCH_PROCESS_ATTR_BITS   	(0)
+#define RLS_LAUNCH_PROCESS_CB_MEM      	(0)
+#define RLS_LAUNCH_PROCESS_CB_SIZE     	(0)
+#define RLS_LAUNCH_PROCESS_STACK_MEM   	(0)
+#define RLS_LAUNCH_PROCESS_PRIORITY    	osPriorityNone
+#define RLS_LAUNCH_PROCESS_STACK_SIZE  	(128 * 4)
+
 #define RLS_MAIN_PROCESS_NAME        	"RLS_MAIN_PROCESS"
 #define RLS_MAIN_PROCESS_ATTR_BITS   	(0)
 #define RLS_MAIN_PROCESS_CB_MEM      	(0)
@@ -101,6 +115,7 @@ typedef enum {
 	RLS_CHANNEL_NOT_READY,				// Blinking Red
 	RLS_CHANNEL_ARMED,					// Green
 	RLS_CHANNEL_LAUNCH,
+	RLS_CHANNEL_LAUNCHING,
 	RLS_CHANNEL_LAUNCH_ERROR,			// Yellow
 	RLS_CHANNEL_LAUNCH_GOOD,			// Blue
 } channelState_t;

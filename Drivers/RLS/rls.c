@@ -48,6 +48,16 @@ osThreadId_t RlsLedProcessId;
 osThreadId_t RlsAlarmProcessId;
 osThreadId_t RlsBeaconProcessId;
 
+const osThreadAttr_t RlsLaunchProcess_attr = {
+    .name = RLS_LAUNCH_PROCESS_NAME,
+    .attr_bits = RLS_LAUNCH_PROCESS_ATTR_BITS,
+    .cb_mem = RLS_LAUNCH_PROCESS_CB_MEM,
+    .cb_size = RLS_LAUNCH_PROCESS_CB_SIZE,
+    .stack_mem = RLS_LAUNCH_PROCESS_STACK_MEM,
+    .priority = RLS_LAUNCH_PROCESS_PRIORITY,
+    .stack_size = RLS_LAUNCH_PROCESS_STACK_SIZE
+};
+
 const osThreadAttr_t RlsProcess_attr = {
     .name = RLS_MAIN_PROCESS_NAME,
     .attr_bits = RLS_MAIN_PROCESS_ATTR_BITS,
@@ -107,12 +117,12 @@ static GPIO_PinState getChannelReadyState(uint8_t channelID);
 static void getLaunchChannelFirePin(uint8_t channelID, GPIO_TypeDef *launchPort, uint16_t *launchPin);
 static void serviceLaunchChannelState(uint8_t channelID);
 static void detectChannelStateChanges(void);
-static bool fireLaunchChannel(uint8_t channelID);
 
 static void measureBattery(void);
 static void calculateBatterySOC(void);
 static void setBatteryIndicator(uint8_t percent);
 
+static void RlsLaunchProcess(void *argument);
 static void RlsProcess(void *argument);
 static void RlsBatteryProcess(void *argument);
 static void RlsLedProcess(void *argument);
@@ -223,13 +233,11 @@ static void serviceLaunchChannelState(uint8_t channelID) {
 			break;
 
 		case RLS_CHANNEL_LAUNCH:
-			// By the time we get back around to here, the channels should have been launched.
-			// Check now to see if everything went well.
-			if (channelReady == GPIO_PIN_RESET) {
-				rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_GOOD;
-			} else {
-				rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
-			}
+			// Channel launch task has taken over the state
+			break;
+
+		case RLS_CHANNEL_LAUNCHING:
+			// State locked until the channel is disarmed!
 			break;
 
 		case RLS_CHANNEL_LAUNCH_ERROR:
@@ -256,42 +264,9 @@ static void detectChannelStateChanges(void) {
 	}
 
 	if (channelChanged) {
+		// Send new updates to mobile app
 		osThreadFlagsSet(RxStatusProcessId, 1);
 	}
-}
-
-//
-static bool fireLaunchChannel(uint8_t channelID) {
-	// Channel must be in the launch state
-	if (rlsHandle.channelState[channelID] != RLS_CHANNEL_LAUNCH) {
-		return false;
-	}
-
-	// Global launch must be active
-	if (rlsHandle.lanuchActivated != true) {
-		return false;
-	}
-
-	// Double check that the launch command has been received
-	if (rlsHandle.launchCommandReceived[channelID] != true) {
-		return false;
-	}
-
-	// Check to see if the igniter still has continuity
-	if (getChannelReadyState(channelID) != GPIO_PIN_SET) {
-		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
-		return false;
-	}
-
-	// Everything looks good. Fire the igniter!
-	GPIO_TypeDef launchPort;
-	uint16_t launchPin;
-	getLaunchChannelFirePin(channelID, &launchPort, &launchPin);
-	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
-
-	rlsHandle.launchCommandReceived[channelID] = false;
-
-	return true;
 }
 
 static void measureBattery(void) {
@@ -403,6 +378,63 @@ static void setBatteryIndicator(uint8_t percent) {
 /********************************************************************************
  * RTOS PROCESSES
  *******************************************************************************/
+
+
+// Launch process instantiated whenever a new channel should be fired
+static void RlsLaunchProcess(void *argument) {
+
+	uint8_t channelID = (uint8_t)(uintptr_t)argument;
+
+	// Channel must be in the launching state
+	if (rlsHandle.channelState[channelID] != RLS_CHANNEL_LAUNCHING) {
+		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
+		osThreadExit();
+	}
+
+	// Global launch must be active
+	if (rlsHandle.lanuchActivated != true) {
+		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
+		osThreadExit();
+	}
+
+	// Double check that the launch command has been received
+	if (rlsHandle.launchCommandReceived[channelID] != true) {
+		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
+		osThreadExit();
+	}
+
+	// Check to see if the igniter still has continuity
+	if (getChannelReadyState(channelID) != GPIO_PIN_SET) {
+		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
+		osThreadExit();
+	}
+
+	// Everything looks good. Fire the igniter!
+	GPIO_TypeDef launchPort;
+	uint16_t launchPin;
+	getLaunchChannelFirePin(channelID, &launchPort, &launchPin);
+#if (ENABLE_LAUNCH_OUTPUT)
+	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_SET);
+#endif
+	rlsHandle.launchCommandReceived[channelID] = false;
+
+	osDelay(LAUNCH_DURATION);
+
+	HAL_GPIO_WritePin(&launchPort, launchPin, GPIO_PIN_RESET);
+
+	// Check to see if the igniter has continuity
+	if (getChannelReadyState(channelID) == GPIO_PIN_SET) {
+		// Igniter shouldn't have continuity, something went wrong!
+		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_ERROR;
+	} else {
+		// Launch executed properly.
+		rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCH_GOOD;
+	}
+
+	osThreadExit();
+}
+
+
 static void RlsProcess(void *argument) {
   UNUSED(argument);
 
@@ -433,19 +465,18 @@ static void RlsProcess(void *argument) {
     detectChannelStateChanges();
 
     // Fire any pending launch channels
-    bool channelLaunched = false;
     for (uint8_t channelID = 0; channelID < LAUNCH_CHANNEL_COUNT; channelID++) {
-    	if (fireLaunchChannel(channelID)) {
-    		channelLaunched = true;
+
+    	if (rlsHandle.channelState[channelID] != RLS_CHANNEL_LAUNCH) {
+    		continue;
     	}
+
+    	// Create a new thread to launch the channel
+    	rlsHandle.channelState[channelID] = RLS_CHANNEL_LAUNCHING;
+    	osThreadNew(RlsLaunchProcess, (void *)(uintptr_t)channelID, &RlsLaunchProcess_attr);
     }
 
-    if (channelLaunched) {
-    	// Add additional launch time to ensure the igniter(s) fire.
-    	osDelay(LAUNCH_DURATION);
-    }
-
-    osDelay(100);
+    osDelay(50);
   }
 }
 
@@ -519,6 +550,12 @@ static void RlsLedProcess(void *argument) {
 				LedAddr_SetColor(ledIndex + 1, 0, 255, 0);
 				LedAddr_SetColor(ledIndex + 2, 0, 255, 0);
 				break;
+			case RLS_CHANNEL_LAUNCHING:
+				// Green
+				LedAddr_SetColor(ledIndex, 0, 255, 255);
+				LedAddr_SetColor(ledIndex + 1, 0, 255, 255);
+				LedAddr_SetColor(ledIndex + 2, 0, 255, 255);
+				break;
 			case RLS_CHANNEL_LAUNCH_ERROR:
 				// Blinking Yellow
 				LedAddr_SetColor(ledIndex, 255, 150, 0);
@@ -536,19 +573,27 @@ static void RlsLedProcess(void *argument) {
 
 	  LedAddr_Update();
 
-	  osDelay(100);
+	  osDelay(50);
   }
 }
 
 static void RlsAlarmProcess(void *argument) {
   UNUSED(argument);
 
-//  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 1);
+  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, (1 & ENABLE_ALARM_OUTPUT));
   osDelay(50);
   HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 0);
 
   for(;;) {
-    osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+	  if (rlsHandle.lanuchActivated) {
+		  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, (1 & ENABLE_ALARM_OUTPUT));
+		  osDelay(ALARM_ON_DURATION);
+		  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 0);
+		  osDelay(ALARM_OFF_DURATION);
+	  } else {
+		  HAL_GPIO_WritePin(ALARM_GPIO_Port, ALARM_Pin, 0);
+		  osDelay(100);
+	  }
   }
 }
 
