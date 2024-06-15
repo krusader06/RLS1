@@ -36,9 +36,9 @@
 #define BAT_VOLT_RESISTOR_TOP		71500
 #define BAT_VOLT_RESISTOR_BOT		24000
 
-#define ENABLE_LAUNCH_OUTPUT		false	/*!< Disable fire pin output for debug and development			*/
+#define ENABLE_LAUNCH_OUTPUT		true	/*!< Disable fire pin output for debug and development			*/
 
-#define ENABLE_ALARM_OUTPUT			false	/*!< Disable alarm output for debug and development				*/
+#define ENABLE_ALARM_OUTPUT			ENABLE_LAUNCH_OUTPUT	/*!< Disable alarm output for debug and development				*/
 #define ALARM_ON_DURATION			1000	/*!< Alarm on time during launch sequence						*/
 #define ALARM_OFF_DURATION			1000	/*!< Alarm off time during launch sequence						*/
 
