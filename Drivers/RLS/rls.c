@@ -88,6 +88,16 @@ const osThreadAttr_t RlsLedProcess_attr = {
     .stack_size = RLS_LED_PROCESS_STACK_SIZE
 };
 
+const osThreadAttr_t RlsLedBlinkProcess_attr = {
+    .name = RLS_LED_BLINK_PROCESS_NAME,
+    .attr_bits = RLS_LED_BLINK_PROCESS_ATTR_BITS,
+    .cb_mem = RLS_LED_BLINK_PROCESS_CB_MEM,
+    .cb_size = RLS_LED_BLINK_PROCESS_CB_SIZE,
+    .stack_mem = RLS_LED_BLINK_PROCESS_STACK_MEM,
+    .priority = RLS_LED_BLINK_PROCESS_PRIORITY,
+    .stack_size = RLS_LED_BLINK_PROCESS_STACK_SIZE
+};
+
 const osThreadAttr_t RlsAlarmProcess_attr = {
     .name = RLS_ALARM_PROCESS_NAME,
     .attr_bits = RLS_ALARM_PROCESS_ATTR_BITS,
@@ -531,9 +541,15 @@ static void RlsLedProcess(void *argument) {
 				break;
 			case RLS_CHANNEL_NOT_READY:
 				// Blinking Red
-				LedAddr_SetColor(ledIndex, 255, 0, 0);
-				LedAddr_SetColor(ledIndex + 1, 255, 0, 0);
-				LedAddr_SetColor(ledIndex + 2, 255, 0, 0);
+				if (rlsHandle.ledBlinkState) {
+					LedAddr_SetColor(ledIndex, 255, 0, 0);
+					LedAddr_SetColor(ledIndex + 1, 255, 0, 0);
+					LedAddr_SetColor(ledIndex + 2, 255, 0, 0);
+				} else {
+					LedAddr_SetColor(ledIndex, 0, 0, 0);
+					LedAddr_SetColor(ledIndex + 1, 0, 0, 0);
+					LedAddr_SetColor(ledIndex + 2, 0, 0, 0);
+				}
 				break;
 			case RLS_CHANNEL_ARMED:
 				// Green
@@ -555,9 +571,15 @@ static void RlsLedProcess(void *argument) {
 				break;
 			case RLS_CHANNEL_LAUNCH_ERROR:
 				// Blinking Yellow
-				LedAddr_SetColor(ledIndex, 255, 150, 0);
-				LedAddr_SetColor(ledIndex + 1, 255, 150, 0);
-				LedAddr_SetColor(ledIndex + 2, 255, 150, 0);
+				if (rlsHandle.ledBlinkState) {
+					LedAddr_SetColor(ledIndex, 255, 150, 0);
+					LedAddr_SetColor(ledIndex + 1, 255, 150, 0);
+					LedAddr_SetColor(ledIndex + 2, 255, 150, 0);
+				} else {
+					LedAddr_SetColor(ledIndex, 0, 0, 0);
+					LedAddr_SetColor(ledIndex + 1, 0, 0, 0);
+					LedAddr_SetColor(ledIndex + 2, 0, 0, 0);
+				}
 				break;
 			case RLS_CHANNEL_LAUNCH_GOOD:
 				// Blue
@@ -572,6 +594,13 @@ static void RlsLedProcess(void *argument) {
 
 	  osDelay(50);
   }
+}
+
+static void RlsLedBlinkProcess(void *argument) {
+	for(;;) {
+		rlsHandle.ledBlinkState = !rlsHandle.ledBlinkState;
+		osDelay(LED_BLINK_DELAY);
+	}
 }
 
 static void RlsAlarmProcess(void *argument) {
@@ -650,6 +679,7 @@ void RLS_Init(void) {
 	RlsProcessId = osThreadNew(RlsProcess, NULL, &RlsProcess_attr);
 	RlsBatteryProcessId = osThreadNew(RlsBatteryProcess, NULL, &RlsBatteryProcess_attr);
 	RlsLedProcessId = osThreadNew(RlsLedProcess, NULL, &RlsLedProcess_attr);
+	RlsLedProcessId = osThreadNew(RlsLedBlinkProcess, NULL, &RlsLedBlinkProcess_attr);
 	RlsAlarmProcessId = osThreadNew(RlsAlarmProcess, NULL, &RlsAlarmProcess_attr);
 	RlsBeaconProcessId = osThreadNew(RlsBeaconProcess, NULL, &RlsBeaconProcess_attr);
 }

@@ -42,6 +42,8 @@
 #define ALARM_ON_DURATION			1000	/*!< Alarm on time during launch sequence						*/
 #define ALARM_OFF_DURATION			1000	/*!< Alarm off time during launch sequence						*/
 
+#define LED_BLINK_DELAY				1000	/*!< LED blink timer in seconds									*/
+
 
 /********************************************************************************
  * RTOS FUNCTIONS FOR RLS
@@ -77,6 +79,14 @@
 #define RLS_LED_PROCESS_STACK_MEM   	(0)
 #define RLS_LED_PROCESS_PRIORITY    	osPriorityNone
 #define RLS_LED_PROCESS_STACK_SIZE  	(128 * 20)
+
+#define RLS_LED_BLINK_PROCESS_NAME        	"RLS_LED_BLINK_PROCESS"
+#define RLS_LED_BLINK_PROCESS_ATTR_BITS   	(0)
+#define RLS_LED_BLINK_PROCESS_CB_MEM      	(0)
+#define RLS_LED_BLINK_PROCESS_CB_SIZE     	(0)
+#define RLS_LED_BLINK_PROCESS_STACK_MEM   	(0)
+#define RLS_LED_BLINK_PROCESS_PRIORITY    	osPriorityNone
+#define RLS_LED_BLINK_PROCESS_STACK_SIZE  	(128 * 10)
 
 #define RLS_ALARM_PROCESS_NAME        	"RLS_ALARM_PROCESS"
 #define RLS_ALARM_PROCESS_ATTR_BITS   	(0)
@@ -131,6 +141,7 @@ typedef struct {
 	bool launchCommandReceived[LAUNCH_CHANNEL_COUNT];
 	rlsBleStatus_t rlsBleStatus;
 	rlsBatteryInfo_t batteryInfo;
+	bool ledBlinkState;
 } rlsHandle_t;
 
 /********************************************************************************
