@@ -112,6 +112,7 @@ const osThreadAttr_t RlsBeaconProcess_attr = {
 /********************************************************************************
  * PRIVATE PROTOTYPES
  *******************************************************************************/
+
 static GPIO_PinState getChannelArmSwitchState(uint8_t channelID);
 static GPIO_PinState getChannelReadyState(uint8_t channelID);
 static void writeChannelFirePin(uint8_t channelID, GPIO_PinState pinState);
@@ -646,14 +647,11 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
   * @retval <retvalName> List and describe return value
   */
 void RLS_Init(void) {
-
 	RlsProcessId = osThreadNew(RlsProcess, NULL, &RlsProcess_attr);
 	RlsBatteryProcessId = osThreadNew(RlsBatteryProcess, NULL, &RlsBatteryProcess_attr);
 	RlsLedProcessId = osThreadNew(RlsLedProcess, NULL, &RlsLedProcess_attr);
 	RlsAlarmProcessId = osThreadNew(RlsAlarmProcess, NULL, &RlsAlarmProcess_attr);
 	RlsBeaconProcessId = osThreadNew(RlsBeaconProcess, NULL, &RlsBeaconProcess_attr);
-
-
 }
 
 /*** end of file ***/

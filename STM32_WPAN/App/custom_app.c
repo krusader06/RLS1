@@ -269,10 +269,6 @@ void Custom_Rls_sts_Send_Notification(void) /* Property Notification */
 /* USER CODE BEGIN FD_LOCAL_FUNCTIONS*/
 
 
-
-
-
-
 /**
  * @brief  Parses an incoming command from the BLE App
  * @param  <pNotification> Pointer to the BLE Notification Packet
@@ -300,18 +296,31 @@ void receiveStatus(Custom_STM_App_Notification_evt_t *pNotification) {
 
 	rls_status_id statusID = pNotification->DataTransfered.pPayload[0];
 
+
 	switch (statusID) {
-		case RLS_LAUNCH_CODE: // Received a launch code.
-			// TODO - Validate launch code against stored PIN. For now, just assume OK.
-			rlsHandle.lanuchActivated = true;
+		case RLS_LAUNCH_CODE: { // Received a launch code.
+			uint8_t *launchCode = &pNotification->DataTransfered.pPayload[1];
+			uint8_t launchCodeCorrect;
+			// Validate launch code against stored PIN.
+			if (memcmp(launchCode, LAUNCH_CODE, sizeof(LAUNCH_CODE) - 1) == 0) {
+				launchCodeCorrect = 1;
+			} else {
+				// Incorrect Launch Code
+				launchCodeCorrect = 0;
+			}
+
+			rlsHandle.lanuchActivated = launchCodeCorrect;
 
 			// Send the launch code response back to the app
 			UpdateCharData[0] = RLS_LAUNCH_CODE;
-			UpdateCharData[1] = 1;
+			UpdateCharData[1] = launchCodeCorrect;
 			if (Custom_App_Context.Rls_sts_Notification_Status) {
 				Custom_Rls_sts_Update_Char();
 			}
+
 			break;
+		}
+
 
 		case RLS_LAUNCH_COMMAND: // Received a launch command.
 			if (rlsHandle.lanuchActivated != true) {

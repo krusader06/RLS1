@@ -29,14 +29,14 @@
   */
 
 #define LAUNCH_CHANNEL_COUNT		4		/*!< Number of supported launch channels						*/
-
 #define LAUNCH_DURATION				2000	/*!< Hold time to ensure igniter(s) fire properly				*/
+#define LAUNCH_CODE					"4321"	/*!< Change this code to whatever you want.						*/
 
 #define SYS_VOLTAGE					3300
 #define BAT_VOLT_RESISTOR_TOP		71500
 #define BAT_VOLT_RESISTOR_BOT		24000
 
-#define ENABLE_LAUNCH_OUTPUT		true	/*!< Disable fire pin output for debug and development			*/
+#define ENABLE_LAUNCH_OUTPUT		false	/*!< Disable fire pin output for debug and development			*/
 
 #define ENABLE_ALARM_OUTPUT			false	/*!< Disable alarm output for debug and development				*/
 #define ALARM_ON_DURATION			1000	/*!< Alarm on time during launch sequence						*/
@@ -129,7 +129,6 @@ typedef struct {
 	bool lanuchActivated;
 	channelState_t channelState[LAUNCH_CHANNEL_COUNT];
 	bool launchCommandReceived[LAUNCH_CHANNEL_COUNT];
-	uint32_t launchCode;
 	rlsBleStatus_t rlsBleStatus;
 	rlsBatteryInfo_t batteryInfo;
 } rlsHandle_t;
